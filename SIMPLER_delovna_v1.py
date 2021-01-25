@@ -127,12 +127,16 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
     rhs_p=np.zeros(Nall_p+1)       
     p_sol=np.zeros(Nall_p+1)
     p_old=np.zeros(Nall_p+1)
+    rhs_p_pseudo=np.zeros(Nall_p+1)       
+    p_sol_pseudo=np.zeros(Nall_p+1)
+    p_old_pseudo=np.zeros(Nall_p+1)
 
     #Storage for matrices
     #We use sparse matrices in "List-of-lists" for construction,before using them in the solver, they are converted to CSR format.
     sparse_u=sp.lil_matrix((Nall_u, Nall_u))
     sparse_v=sp.lil_matrix((Nall_v, Nall_v))
     sparse_p=sp.lil_matrix((Nall_p+1, Nall_p+1))
+    sparse_p_pseudo=sp.lil_matrix((Nall_p+1, Nall_p+1))
 
     #Generation of staggered grid
     h=1./(N)
@@ -242,12 +246,13 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                     a_p=a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs)
                     a_p=a_p+8*eta*h/(h/2) 
                     b_p=0
+                    us_pseudo[i,j]=0
                 #Wall at y=1d0, the position of moving lid.
                 elif(j==N-1):
                     a_n=0
                     a_p=a_w+a_e+a_s+a_n + (Fe-Fw)+(Fn-Fs)
                     a_p=a_p+8*eta*h/(h/2)
-                    b_p=a_p*v_lid
+                    b_p=8*v_lid*eta*h/(h/2)
                     #us_pseudo[i,j]=v_lid
                 #ds_u[i, j]=h/a_p
                 
@@ -319,7 +324,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                 elif(i==N-1):
                     a_e=0
                     a_p=a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs)
-                    a_p=a_p+8*eta*h/(h/2)              
+                    a_p=a_p+8*eta*h/(h/2)
                 #ds_v[i, j]=h/a_p
                 
                 b_p=0
@@ -331,6 +336,12 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
             for j in [0, N]:
                 vs_pseudo[i,j]=0
                 ds_v_pseudo[i, j]=0
+                
+        '''set new guess velocities'''
+        print('us_pseudo\n',us_pseudo,'\nvs_pseudo\n',vs_pseudo)
+        us=us_pseudo
+        vs=vs_pseudo
+        
 
 
 
@@ -361,57 +372,54 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                     #a_w=0
                     a_w=2*a_w
                 else:
-                    sparse_p[Ip, Iw]=-a_w
+                    sparse_p_pseudo[Ip, Iw]=-a_w
                     
                 if(i==N-1):
                     #a_e=0
                     a_e=2*a_e
                 else:
-                    sparse_p[Ip, Ie]=-a_e
+                    sparse_p_pseudo[Ip, Ie]=-a_e
                 
                 if(j==0):
                     #a_s=0
                     a_s=2*a_s
                 else:
-                    sparse_p[Ip, Is]=-a_s
+                    sparse_p_pseudo[Ip, Is]=-a_s
                 
                 if(j==N-1):
                     #a_n=0
                     a_n=2*a_n
                 else:
-                    sparse_p[Ip, In]=-a_n
+                    sparse_p_pseudo[Ip, In]=-a_n
                 
                 a_p=a_e+a_w+a_n+a_s
-                sparse_p[Ip, Ip]=a_p
+                sparse_p_pseudo[Ip, Ip]=a_p
             
-                rhs_p[Ip]=h*(us_pseudo[i,j] - us_pseudo[i+1,j] + vs_pseudo[i,j] - vs_pseudo[i,j+1])   
+                rhs_p_pseudo[Ip]=h*(us_pseudo[i,j] - us_pseudo[i+1,j] + vs_pseudo[i,j] - vs_pseudo[i,j+1])   
 
         #Add the regularization equation sum(p)=0
-        rhs_p[Nall_p]=0
-        sparse_p[0:Nall_p, Nall_p]=1e0
-        sparse_p[Nall_p, 0:Nall_p]=1e0
+        rhs_p_pseudo[Nall_p]=0
+        sparse_p_pseudo[0:Nall_p, Nall_p]=1e0
+        sparse_p_pseudo[Nall_p, 0:Nall_p]=1e0
 
         #Solve the system of equations
-        p_old=p_sol.copy()
-        p_sol=sp_linalg.spsolve(sparse_p.tocsr(), rhs_p)
-        p_vals=p_sol[0:Nall_p]
+        p_old_pseudo=p_sol_pseudo.copy()
+        p_sol_pseudo=sp_linalg.spsolve(sparse_p_pseudo.tocsr(), rhs_p_pseudo)
+        p_vals_pseudo=p_sol_pseudo[0:Nall_p]
         #print("Pe_u:", Pe_u)
-        reshuffle_p(p_sol, ps_step2, N)
+        reshuffle_p(p_sol_pseudo, ps_step2, N)
         
+        #print('ps',ps_step2)
         #set p*=p
         ps = ps_step2
-
+        #s1=sparse_p
+        #print('s1',s1)
+        print('ps_pseud\n',ps)
     
     
 
     
-########################################## Simpler step 3 #####################################################    
-       
-        ###################################
-        #Set up the system of equations for guess velocity (u, v).
-        ###################################
-        
-        ###################################
+########################################## Simpler step 3 #####################################################
         # u-component of velocity, interior
         for i in range(1, N):
             for j in range(1, N-1):
@@ -721,7 +729,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         #print("Pressure corr:", p_corr_norm[itr])
         #alpha_p=0.9e0
         #alpha_vel=0.95e0
-        
+        print('ps_prime\n',ps_prime)
         #Update pressure
         ps=ps+alpha_p*ps_prime
         
@@ -748,10 +756,9 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         print('us\n',us)
         
         vs=alpha_vel*vs + (1.-alpha_vel)*vs_old
-        print('vs\n',vs)
         vs_old=vs.copy()
-        
-##################################ploting###############################################
+        print('vs\n',us)
+
         #Extract data for plotting
         interpolate_to_pressure_pos(us, vs, vel_at_p, N)
         for i in range(0, N):
@@ -803,7 +810,9 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
     plt.title("Final pressure")
     plt.axes().set_aspect('equal')
     plt.contourf(ps.transpose(), levels=np.linspace(pmin, pmax, 20))
-    plt.show()
+    plt.show()  
+
+
 
 # In[5]:
 
