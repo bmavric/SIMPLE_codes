@@ -81,7 +81,7 @@ def reshuffle_p(p_sol, ps, N):
 def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
     Nmax_iters=200
     #Nmax_iters=20
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18,6))
+    fig, (ax1, ax2, ax3,ax4) = plt.subplots(1, 4, figsize=(18,6))
     
     p_corr_norm=np.zeros(Nmax_iters)
     v_corr_norm=np.zeros(Nmax_iters)
@@ -214,7 +214,8 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                 a_p=a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs)
                 #Monitor the Peclet number
                 Pe_u=max([Pe_u, max([Fw, Fe, Fs, Fn])/Dw])
-                us_pseudo[i,j] = (a_w+a_e+a_s+a_n)*us[i,j]/a_p
+                b_p=0
+                us_pseudo[i,j] = (a_w*us[i-1,j]+a_e*us[i+1,j]+a_s*us[i,j-1]+a_n*us[i,j+1]+b_p)/a_p
                 ds_u_pseudo[i, j]=h/a_p
                 
         # u-component of velocity in cells in contact with north/south walls
@@ -246,18 +247,16 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                     a_p=a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs)
                     a_p=a_p+8*eta*h/(h/2) 
                     b_p=0
-                    us_pseudo[i,j]=0
+                    us_pseudo[i,j] = (a_w*us[i-1,j]+a_e*us[i+1,j]+a_n*us[i,j+1]+b_p)/a_p
                 #Wall at y=1d0, the position of moving lid.
                 elif(j==N-1):
                     a_n=0
                     a_p=a_w+a_e+a_s+a_n + (Fe-Fw)+(Fn-Fs)
                     a_p=a_p+8*eta*h/(h/2)
                     b_p=8*v_lid*eta*h/(h/2)
-                    #us_pseudo[i,j]=v_lid
-                #ds_u[i, j]=h/a_p
+                    us_pseudo[i,j] = (a_w*us[i-1,j]+a_e*us[i+1,j]+a_s*us[i,j-1]+b_p)/a_p         
                 
-                us_pseudo[i,j]=((a_w+a_e+a_s+a_n)*us[i,j]+b_p)/a_p
-                ds_u_pseudo[i, j]=h/(a_w+a_e+a_s+a_n + (Fe-Fw)+(Fn-Fs))          
+                ds_u_pseudo[i, j]=h/a_p#(a_w+a_e+a_s+a_n + (Fe-Fw)+(Fn-Fs))          
             
         # u-component of velocity in cells in contact with east/west walls
         for i in [0, N]:
@@ -291,7 +290,8 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                     a_s=max([Fs, (Ds+Fs/2), 0.])
                     a_n=max([-Fn, (Dn-Fn/2), 0.])
                 a_p=a_w+a_e+a_s+a_n +(Fe-Fw) +(Fn-Fs)
-                vs_pseudo[i,j] = (a_w+a_e+a_s+a_n)*vs[i,j]/a_p
+                b_p=0
+                vs_pseudo[i,j] = (a_w*vs[i-1,j]+a_e*vs[i+1,j]+a_s*vs[i,j-1]+a_n*vs[i,j+1]+b_p)/a_p
                 ds_v_pseudo[i, j]=h/a_p
 
         # v-component of velocity in cells in contact with east/west walls
@@ -321,35 +321,26 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                     a_w=0
                     a_p=a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs)
                     a_p=a_p+8*eta*h/(h/2)
+                    vs_pseudo[i,j] = (a_e*vs[i+1,j]+a_s*vs[i,j-1]+a_n*vs[i,j+1]+b_p)/a_p
                 elif(i==N-1):
                     a_e=0
                     a_p=a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs)
                     a_p=a_p+8*eta*h/(h/2)
-                #ds_v[i, j]=h/a_p
-                
+                    vs_pseudo[i,j] = (a_w*vs[i-1,j]+a_s*vs[i,j-1]+a_n*vs[i,j+1]+b_p)/a_p
                 b_p=0
-                vs_pseudo[i,j] =((a_w+a_e+a_s+a_n)*vs[i,j]+b_p) /a_p
-                ds_v_pseudo[i, j]=h/(a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs))
+                #ds_v_pseudo[i, j]=h/(a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs))
+                ds_v_pseudo[i,j]=h/a_p
 
         # v-component of velocity in cells in contact with north/south walls
         for i in range(0, N):
             for j in [0, N]:
                 vs_pseudo[i,j]=0
-                ds_v_pseudo[i, j]=0
-                
-        '''set new guess velocities'''
-        print('us_pseudo\n',us_pseudo,'\nvs_pseudo\n',vs_pseudo)
-        us=us_pseudo
-        vs=vs_pseudo
-        
+                ds_v_pseudo[i, j]=0                
 
+        print('us_pseudo\n',us_pseudo,'\nvs_pseudo\n',vs_pseudo)         
+                
+                
 
-
-
-                
-                
-                
-                
             
             
 ####################################################################################
@@ -405,16 +396,14 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         #Solve the system of equations
         p_old_pseudo=p_sol_pseudo.copy()
         p_sol_pseudo=sp_linalg.spsolve(sparse_p_pseudo.tocsr(), rhs_p_pseudo)
-        p_vals_pseudo=p_sol_pseudo[0:Nall_p]
+        #p_vals_pseudo=p_sol_pseudo[0:Nall_p]
         #print("Pe_u:", Pe_u)
         reshuffle_p(p_sol_pseudo, ps_step2, N)
         
-        #print('ps',ps_step2)
         #set p*=p
-        ps = ps_step2
-        #s1=sparse_p
-        #print('s1',s1)
-        print('ps_pseud\n',ps)
+        ps = ps_step2 #*alpha_p+ps
+        print('ps_pseudo\n',ps,'\n\n',p_old_pseudo)
+
     
     
 
@@ -722,7 +711,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         #Solve the system of equations
         p_old=p_sol.copy()
         p_sol=sp_linalg.spsolve(sparse_p.tocsr(), rhs_p)
-        p_vals=p_sol[0:Nall_p]
+        #p_vals=p_sol[0:Nall_p]
         #print("Pe_u:", Pe_u)
         reshuffle_p(p_sol, ps_prime, N)
         p_corr_norm[itr]=np.linalg.norm(ps_prime)/(np.linalg.norm(ps))
@@ -731,8 +720,9 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         #alpha_vel=0.95e0
         print('ps_prime\n',ps_prime)
         #Update pressure
-        ps=ps+alpha_p*ps_prime
+        #ps=ps+alpha_p*ps_prime
         
+       
         #correct u values
         for i in range(1, N):
             for j in range(0, N):
@@ -753,12 +743,14 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         #Under-relax velocity corrections
         us=alpha_vel*us + (1.-alpha_vel)*us_old
         us_old=us.copy()
-        print('us\n',us)
+        
         
         vs=alpha_vel*vs + (1.-alpha_vel)*vs_old
         vs_old=vs.copy()
-        print('vs\n',us)
-
+        
+        print('us\n',us)
+        print('vs\n',vs)
+        
         #Extract data for plotting
         interpolate_to_pressure_pos(us, vs, vel_at_p, N)
         for i in range(0, N):
@@ -789,6 +781,13 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         ax3.plot(us[int(N/2)+1, :], label="u @ x=0.5")
         ax3.set_title("Velocity profiles")
         ax3.legend()
+        
+        ax4.set_title("Relative magnitude of corrections")
+        ax4.set_yscale('log')
+        press_line=ax4.plot(p_corr_norm[1:itr], label="Pressure")
+        #vel_line=ax2.plot(v_corr_norm[1:itr], label="Velocity")
+        #ax4.legend()
+        
         #plt.draw()
         clear_output(wait=True)
         display(fig)
@@ -822,7 +821,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
 
 
 
-SIMPLER_demo(N=5, FD_kind='central', Re=1, alpha_p=0.9, alpha_vel=0.9)
+SIMPLER_demo(N=5, FD_kind='central', Re=1, alpha_p=0.9, alpha_vel=0.90)
 
 
 
