@@ -180,7 +180,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
     Ds=Gamma/h
     Dn=Gamma/h
 
-    A=h
+    A=1
 #################################START OF ROUTINE ##########################################################################
     #Start the iteration loop
     for itr in range(0, Nmax_iters):
@@ -243,17 +243,17 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                 #Wall at y=0
                 #######ali je lahko ds_u_psudo = 0??
                 if(j==0):
-                    a_s=0
+                    a_s=a_s+Ds
                     a_p=a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs)
-                    a_p=a_p+8*eta*h/(h/2) 
+                    a_p=a_p 
                     b_p=0
                     us_pseudo[i,j] = (a_w*us[i-1,j]+a_e*us[i+1,j]+a_n*us[i,j+1]+b_p)/a_p
                 #Wall at y=1d0, the position of moving lid.
                 elif(j==N-1):
-                    a_n=0
+                    a_n=a_n+Dn
                     a_p=a_w+a_e+a_s+a_n + (Fe-Fw)+(Fn-Fs)
-                    a_p=a_p+8*eta*h/(h/2)
-                    b_p=8*v_lid*eta*h/(h/2)
+                    a_p=a_p
+                    b_p=a_n*v_lid
                     us_pseudo[i,j] = (a_w*us[i-1,j]+a_e*us[i+1,j]+a_s*us[i,j-1]+b_p)/a_p         
                 
                 ds_u_pseudo[i, j]=h/a_p#(a_w+a_e+a_s+a_n + (Fe-Fw)+(Fn-Fs))          
@@ -318,14 +318,14 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                     a_s=max([Fs, (Ds+Fs/2), 0])
                     a_n=max([-Fn, (Dn-Fn/2), 0])            
                 if(i==0):
-                    a_w=0
+                    a_w=a_w+Dw
                     a_p=a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs)
-                    a_p=a_p+8*eta*h/(h/2)
+                    a_p=a_p
                     vs_pseudo[i,j] = (a_e*vs[i+1,j]+a_s*vs[i,j-1]+a_n*vs[i,j+1]+b_p)/a_p
                 elif(i==N-1):
-                    a_e=0
+                    a_e=a_e+De
                     a_p=a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs)
-                    a_p=a_p+8*eta*h/(h/2)
+                    a_p=a_p
                     vs_pseudo[i,j] = (a_w*vs[i-1,j]+a_s*vs[i,j-1]+a_n*vs[i,j+1]+b_p)/a_p
                 b_p=0
                 #ds_v_pseudo[i, j]=h/(a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs))
@@ -360,25 +360,21 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
 
                 #Treat the boundary conditions
                 if(i==0) :
-                    #a_w=0
                     a_w=2*a_w
                 else:
                     sparse_p_pseudo[Ip, Iw]=-a_w
                     
                 if(i==N-1):
-                    #a_e=0
                     a_e=2*a_e
                 else:
                     sparse_p_pseudo[Ip, Ie]=-a_e
                 
                 if(j==0):
-                    #a_s=0
                     a_s=2*a_s
                 else:
                     sparse_p_pseudo[Ip, Is]=-a_s
                 
                 if(j==N-1):
-                    #a_n=0
                     a_n=2*a_n
                 else:
                     sparse_p_pseudo[Ip, In]=-a_n
@@ -403,9 +399,20 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         #set p*=p
         ps = ps_step2 #*alpha_p+ps
         print('ps_pseudo\n',ps,'\n\n',p_old_pseudo)
+        interpolate_to_pressure_pos(us_pseudo, vs_pseudo, vel_at_p, N)
+        for i in range(0, N):
+            for j in range(0, N):
+                vel_norm_at_p[i, j]=np.linalg.norm(vel_at_p[:, i, j])
+        ax1.set_title("Streamlines and pressure field")
+        ax1.contourf(ps.transpose(), cmap='YlGnBu_r')
+        ax1.streamplot(points_p[0, 0:N]*N, points_p[1, 0:Nall_p:N]*N, vel_at_p[0, :, :].transpose(), vel_at_p[1, :, :].transpose(), color=vel_norm_at_p.transpose(), density=1, linewidth=3., cmap='hot')
 
-    
-    
+        ax1.set_aspect('equal')
+
+        display(fig)
+        plt.show()
+        plt.pause(0.001)
+        input("After pressure calculation. Hit Enter to continue.")
 
     
 ########################################## Simpler step 3 #####################################################
@@ -498,9 +505,9 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
 
                 #Wall at y=0
                 if(j==0):
-                    a_s=0
+                    a_s=a_s+Ds
                     a_p=a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs)
-                    a_p=a_p+8*eta*h/(h/2)
+                    a_p=a_p
                     sparse_u[Ip, Ip]=a_p
                     sparse_u[Ip, In]=-a_n
 
@@ -509,14 +516,14 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                     
                 #Wall at y=1d0, the position of moving lid.
                 elif(j==N-1):
-                    a_n=0
+                    a_n=a_n+Dn
                     a_p=a_w+a_e+a_s+a_n + (Fe-Fw)+(Fn-Fs)
-                    a_p=a_p+8*eta*h/(h/2)
+                    a_p=a_p
                     sparse_u[Ip, Ip]=a_p
                     sparse_u[Ip, Is]=-a_s
 
                     #Set up RHS for u-component, the last term provides the driving
-                    rhs_u[Ip]=A*(ps[i-1, j] - ps[i, j]) + 8*v_lid*eta*h/(h/2)
+                    rhs_u[Ip]=A*(ps[i-1, j] - ps[i, j]) + a_n*v_lid
                 
                 #ds_u[i, j]=h/a_p          
                 ds_u[i, j]=h/(a_w+a_e+a_s+a_n + (Fe-Fw)+(Fn-Fs))          
@@ -619,15 +626,15 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                 sparse_v[Ip, Is]=-a_s
             
                 if(i==0):
-                    a_w=0
+                    a_w=a_w+Dw
                     a_p=a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs)
-                    a_p=a_p+8*eta*h/(h/2)
+                    a_p=a_p
                     sparse_v[Ip, Ip]=a_p
                     sparse_v[Ip, Ie]=-a_e
                 elif(i==N-1):
-                    a_e=0
+                    a_e=a_e + De
                     a_p=a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs)
-                    a_p=a_p+8*eta*h/(h/2)
+                    a_p=a_p
                     sparse_v[Ip, Ip]=a_p
                     sparse_v[Ip, Iw]=-a_w
                 
@@ -650,6 +657,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                 #Set up RHS for u-component
                 rhs_v[Ip]=0
 
+        print("rhs_u", rhs_u)
         #Solve the system of equations for u
         u_sol=sp_linalg.spsolve(sparse_u.tocsr(), rhs_u)
         reshuffle_us(u_sol, us, N)
@@ -658,7 +666,22 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         v_sol=sp_linalg.spsolve(sparse_v.tocsr(), rhs_v)
         reshuffle_vs(v_sol, vs, N)
         
-        
+        interpolate_to_pressure_pos(us, vs, vel_at_p, N)
+        for i in range(0, N):
+            for j in range(0, N):
+                vel_norm_at_p[i, j]=np.linalg.norm(vel_at_p[:, i, j])
+        ax1.cla()
+        ax1.set_title("Streamlines and pressure field")
+        ax1.contourf(ps.transpose(), cmap='YlGnBu_r')
+        ax1.streamplot(points_p[0, 0:N]*N, points_p[1, 0:Nall_p:N]*N, vel_at_p[0, :, :].transpose(), vel_at_p[1, :, :].transpose(), color=vel_norm_at_p.transpose(), density=1, linewidth=3., cmap='hot')
+
+        ax1.set_aspect('equal')
+
+        display(fig)
+        plt.show()
+        plt.pause(0.001)
+        input("After guess velocity calculation. Hit Enter to continue.")
+
         #Assemble the pressure matrix
         for i in range(0, N):
             for j in range(0, N):
@@ -791,8 +814,8 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         #plt.draw()
         clear_output(wait=True)
         display(fig)
-        #plt.show()
-        #plt.pause(.0001)
+        plt.show()
+        plt.pause(.0001)
         
         
     plt.ioff()    
@@ -821,7 +844,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
 
 
 
-SIMPLER_demo(N=5, FD_kind='central', Re=1, alpha_p=0.9, alpha_vel=0.90)
+SIMPLER_demo(N=20, FD_kind='central', Re=1, alpha_p=0.9, alpha_vel=0.90)
 
 
 
