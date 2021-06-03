@@ -78,7 +78,7 @@ def reshuffle_p(p_sol, ps, N):
 
 # In[4]:
 #Main function used to solve the system of equations
-def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
+def SIMPLER_demo(N, FD_kind, Re, alpha_vel):
     Nmax_iters=200
     #Nmax_iters=20
     fig, (ax1, ax2, ax3,ax4) = plt.subplots(1, 4, figsize=(18,6))
@@ -180,11 +180,10 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
     Ds=Gamma/h
     Dn=Gamma/h
 
-    A=1
 #################################START OF ROUTINE ##########################################################################
     #Start the iteration loop
     for itr in range(0, Nmax_iters):
-        #print(itr)
+        print(itr)
         Pe_u=0.    
         '''--------------------------PESUDO VELOCITIES -----------------------------------------'''
         # u-component of velocity, interior
@@ -216,7 +215,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                 Pe_u=max([Pe_u, max([Fw, Fe, Fs, Fn])/Dw])
                 b_p=0
                 us_pseudo[i,j] = (a_w*us[i-1,j]+a_e*us[i+1,j]+a_s*us[i,j-1]+a_n*us[i,j+1]+b_p)/a_p
-                ds_u_pseudo[i, j]=h/a_p
+                ds_u_pseudo[i, j]=1/a_p
                 
         # u-component of velocity in cells in contact with north/south walls
         for i in range(1, N):
@@ -256,7 +255,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                     b_p=a_n*v_lid
                     us_pseudo[i,j] = (a_w*us[i-1,j]+a_e*us[i+1,j]+a_s*us[i,j-1]+b_p)/a_p         
                 
-                ds_u_pseudo[i, j]=h/a_p#(a_w+a_e+a_s+a_n + (Fe-Fw)+(Fn-Fs))          
+                ds_u_pseudo[i, j]=1/a_p#(a_w+a_e+a_s+a_n + (Fe-Fw)+(Fn-Fs))          
             
         # u-component of velocity in cells in contact with east/west walls
         for i in [0, N]:
@@ -292,7 +291,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                 a_p=a_w+a_e+a_s+a_n +(Fe-Fw) +(Fn-Fs)
                 b_p=0
                 vs_pseudo[i,j] = (a_w*vs[i-1,j]+a_e*vs[i+1,j]+a_s*vs[i,j-1]+a_n*vs[i,j+1]+b_p)/a_p
-                ds_v_pseudo[i, j]=h/a_p
+                ds_v_pseudo[i, j]=1/a_p
 
         # v-component of velocity in cells in contact with east/west walls
         for i in [0, N-1]:
@@ -328,8 +327,8 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                     a_p=a_p
                     vs_pseudo[i,j] = (a_w*vs[i-1,j]+a_s*vs[i,j-1]+a_n*vs[i,j+1]+b_p)/a_p
                 b_p=0
-                #ds_v_pseudo[i, j]=h/(a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs))
-                ds_v_pseudo[i,j]=h/a_p
+                #ds_v_pseudo[i, j]=1/(a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs))
+                ds_v_pseudo[i,j]=1/a_p
 
         # v-component of velocity in cells in contact with north/south walls
         for i in range(0, N):
@@ -337,7 +336,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                 vs_pseudo[i,j]=0
                 ds_v_pseudo[i, j]=0                
 
-        print('us_pseudo\n',us_pseudo,'\nvs_pseudo\n',vs_pseudo)         
+        #print('us_pseudo\n',us_pseudo,'\nvs_pseudo\n',vs_pseudo)         
                 
                 
 
@@ -382,7 +381,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                 a_p=a_e+a_w+a_n+a_s
                 sparse_p_pseudo[Ip, Ip]=a_p
             
-                rhs_p_pseudo[Ip]=h*(us_pseudo[i,j] - us_pseudo[i+1,j] + vs_pseudo[i,j] - vs_pseudo[i,j+1])   
+                rhs_p_pseudo[Ip]=us_pseudo[i,j] - us_pseudo[i+1,j] + vs_pseudo[i,j] - vs_pseudo[i,j+1]
 
         #Add the regularization equation sum(p)=0
         rhs_p_pseudo[Nall_p]=0
@@ -397,22 +396,24 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         reshuffle_p(p_sol_pseudo, ps_step2, N)
         
         #set p*=p
-        ps = ps_step2 #*alpha_p+ps
-        print('ps_pseudo\n',ps,'\n\n',p_old_pseudo)
-        interpolate_to_pressure_pos(us_pseudo, vs_pseudo, vel_at_p, N)
-        for i in range(0, N):
-            for j in range(0, N):
-                vel_norm_at_p[i, j]=np.linalg.norm(vel_at_p[:, i, j])
-        ax1.set_title("Streamlines and pressure field")
-        ax1.contourf(ps.transpose(), cmap='YlGnBu_r')
-        ax1.streamplot(points_p[0, 0:N]*N, points_p[1, 0:Nall_p:N]*N, vel_at_p[0, :, :].transpose(), vel_at_p[1, :, :].transpose(), color=vel_norm_at_p.transpose(), density=1, linewidth=3., cmap='hot')
+        """ Set p* = p, based on pseudo velocities """
+        ps = ps_step2
+        
+        #print('ps_pseudo\n',ps,'\n\n',p_old_pseudo)
+        # interpolate_to_pressure_pos(us_pseudo, vs_pseudo, vel_at_p, N)
+        # for i in range(0, N):
+        #     for j in range(0, N):
+        #         vel_norm_at_p[i, j]=np.linalg.norm(vel_at_p[:, i, j])
+        # ax1.set_title("Streamlines and pressure field")
+        # ax1.contourf(ps.transpose(), cmap='YlGnBu_r')
+        # ax1.streamplot(points_p[0, 0:N]*N, points_p[1, 0:Nall_p:N]*N, vel_at_p[0, :, :].transpose(), vel_at_p[1, :, :].transpose(), color=vel_norm_at_p.transpose(), density=1, linewidth=3., cmap='hot')
 
-        ax1.set_aspect('equal')
+        # ax1.set_aspect('equal')
 
-        display(fig)
-        plt.show()
-        plt.pause(0.001)
-        input("After pressure calculation. Hit Enter to continue.")
+        # display(fig)
+        # plt.show()
+        # plt.pause(0.001)
+        # input("After pressure calculation. Hit Enter to continue.")
 
     
 ########################################## Simpler step 3 #####################################################
@@ -463,7 +464,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                 sparse_u[Ip, Is]=-a_s
 
                 #Store for pressure correction
-                ds_u[i, j]=h/a_p
+                ds_u[i, j]=1/a_p
             
                 #Set up RHS for u-component
                 rhs_u[Ip]=A*(ps[i-1, j] - ps[i, j])
@@ -512,7 +513,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                     sparse_u[Ip, In]=-a_n
 
                     #Set up RHS for u-component
-                    rhs_u[Ip]=A*(ps[i-1, j] - ps[i, j])
+                    rhs_u[Ip]=ps[i-1, j] - ps[i, j]
                     
                 #Wall at y=1d0, the position of moving lid.
                 elif(j==N-1):
@@ -523,10 +524,10 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                     sparse_u[Ip, Is]=-a_s
 
                     #Set up RHS for u-component, the last term provides the driving
-                    rhs_u[Ip]=A*(ps[i-1, j] - ps[i, j]) + a_n*v_lid
+                    rhs_u[Ip]=ps[i-1, j] - ps[i, j] + a_n*v_lid
                 
-                #ds_u[i, j]=h/a_p          
-                ds_u[i, j]=h/(a_w+a_e+a_s+a_n + (Fe-Fw)+(Fn-Fs))          
+                #ds_u[i, j]=1/a_p          
+                ds_u[i, j]=1/(a_w+a_e+a_s+a_n + (Fe-Fw)+(Fn-Fs))          
             
         # u-component of velocity in cells in contact with east/west walls
         for i in [0, N]:
@@ -584,10 +585,10 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                 sparse_v[Ip, Ie]=-a_e
                 sparse_v[Ip, Is]=-a_s
 
-                ds_v[i, j]=h/a_p
+                ds_v[i, j]=1/a_p
             
                 #Set up RHS for v-component
-                rhs_v[Ip]=A*(ps[i, j-1] - ps[i, j])
+                rhs_v[Ip]=ps[i, j-1] - ps[i, j]
 
         # v-component of velocity in cells in contact with east/west walls
         for i in [0, N-1]:
@@ -638,11 +639,11 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                     sparse_v[Ip, Ip]=a_p
                     sparse_v[Ip, Iw]=-a_w
                 
-                #ds_v[i, j]=h/a_p
-                ds_v[i, j]=h/(a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs))
+                #ds_v[i, j]=1/a_p
+                ds_v[i, j]=1/(a_w+a_e+a_s+a_n +(Fe-Fw)+(Fn-Fs))
             
                 #Set up RHS for v-component
-                rhs_v[Ip]=A*(ps[i, j-1] - ps[i, j])
+                rhs_v[Ip]=ps[i, j-1] - ps[i, j]
 
         # v-component of velocity in cells in contact with north/south walls
         for i in range(0, N):
@@ -657,7 +658,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                 #Set up RHS for u-component
                 rhs_v[Ip]=0
 
-        print("rhs_u", rhs_u)
+        #print("rhs_u", rhs_u)
         #Solve the system of equations for u
         u_sol=sp_linalg.spsolve(sparse_u.tocsr(), rhs_u)
         reshuffle_us(u_sol, us, N)
@@ -666,21 +667,21 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         v_sol=sp_linalg.spsolve(sparse_v.tocsr(), rhs_v)
         reshuffle_vs(v_sol, vs, N)
         
-        interpolate_to_pressure_pos(us, vs, vel_at_p, N)
-        for i in range(0, N):
-            for j in range(0, N):
-                vel_norm_at_p[i, j]=np.linalg.norm(vel_at_p[:, i, j])
-        ax1.cla()
-        ax1.set_title("Streamlines and pressure field")
-        ax1.contourf(ps.transpose(), cmap='YlGnBu_r')
-        ax1.streamplot(points_p[0, 0:N]*N, points_p[1, 0:Nall_p:N]*N, vel_at_p[0, :, :].transpose(), vel_at_p[1, :, :].transpose(), color=vel_norm_at_p.transpose(), density=1, linewidth=3., cmap='hot')
+        # interpolate_to_pressure_pos(us, vs, vel_at_p, N)
+        # for i in range(0, N):
+        #     for j in range(0, N):
+        #         vel_norm_at_p[i, j]=np.linalg.norm(vel_at_p[:, i, j])
+        # ax1.cla()
+        # ax1.set_title("Streamlines and pressure field")
+        # ax1.contourf(ps.transpose(), cmap='YlGnBu_r')
+        # ax1.streamplot(points_p[0, 0:N]*N, points_p[1, 0:Nall_p:N]*N, vel_at_p[0, :, :].transpose(), vel_at_p[1, :, :].transpose(), color=vel_norm_at_p.transpose(), density=1, linewidth=3., cmap='hot')
 
-        ax1.set_aspect('equal')
+        # ax1.set_aspect('equal')
 
-        display(fig)
-        plt.show()
-        plt.pause(0.001)
-        input("After guess velocity calculation. Hit Enter to continue.")
+        # display(fig)
+        # plt.show()
+        # plt.pause(0.001)
+        # input("After guess velocity calculation. Hit Enter to continue.")
 
         #Assemble the pressure matrix
         for i in range(0, N):
@@ -724,7 +725,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
                 a_p=a_e+a_w+a_n+a_s
                 sparse_p[Ip, Ip]=a_p
             
-                rhs_p[Ip]=h*(us[i,j] - us[i+1,j] + vs[i,j] - vs[i,j+1])   
+                rhs_p[Ip]=us[i,j] - us[i+1,j] + vs[i,j] - vs[i,j+1]
 
         #Add the regularization equation sum(p)=0
         rhs_p[Nall_p]=0
@@ -741,7 +742,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         #print("Pressure corr:", p_corr_norm[itr])
         #alpha_p=0.9e0
         #alpha_vel=0.95e0
-        print('ps_prime\n',ps_prime)
+        #print('ps_prime\n',ps_prime)
         #Update pressure
         #ps=ps+alpha_p*ps_prime
         
@@ -771,8 +772,8 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         vs=alpha_vel*vs + (1.-alpha_vel)*vs_old
         vs_old=vs.copy()
         
-        print('us\n',us)
-        print('vs\n',vs)
+        #print('us\n',us)
+        #print('vs\n',vs)
         
         #Extract data for plotting
         interpolate_to_pressure_pos(us, vs, vel_at_p, N)
@@ -805,9 +806,9 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
         ax3.set_title("Velocity profiles")
         ax3.legend()
         
-        ax4.set_title("Relative magnitude of corrections")
-        ax4.set_yscale('log')
-        press_line=ax4.plot(p_corr_norm[1:itr], label="Pressure")
+        #ax4.set_title("Relative magnitude of corrections")
+        #ax4.set_yscale('log')
+        #press_line=ax4.plot(p_corr_norm[1:itr], label="Pressure")
         #vel_line=ax2.plot(v_corr_norm[1:itr], label="Velocity")
         #ax4.legend()
         
@@ -844,7 +845,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_p, alpha_vel):
 
 
 
-SIMPLER_demo(N=20, FD_kind='central', Re=1, alpha_p=0.9, alpha_vel=0.90)
+SIMPLER_demo(N=10, FD_kind='central', Re=1, alpha_vel=0.60)
 
 
 
