@@ -467,7 +467,7 @@ def SIMPLER_demo(N, FD_kind, Re, alpha_vel):
                 ds_u[i, j]=1/a_p
             
                 #Set up RHS for u-component
-                rhs_u[Ip]=A*(ps[i-1, j] - ps[i, j])
+                rhs_u[Ip]=ps[i-1, j] - ps[i, j]
 
         # u-component of velocity in cells in contact with north/south walls
         for i in range(1, N):
